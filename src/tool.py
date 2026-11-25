@@ -1,7 +1,6 @@
 #tool type
 from typing import Any,Callable
 from dataclasses import dataclass
-from itertools import combinations
 @dataclass
 class Tool:
     id_type:str
@@ -21,16 +20,7 @@ class Tool:
 OPERATIONS = ("add","sub","mul","div","mod") 
 
 #repatable
-def parameters(
-    operations: tuple[str, ...],
-    operation_required: bool = True
-) -> dict[str, Any]:
-
-    required = ["a", "b"]
-
-    if operation_required:
-        required.append("operation")
-
+def parameters(operations: tuple[str, ...]) -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {
@@ -48,7 +38,7 @@ def parameters(
                 "description": "Arithmetic operation to perform."
             },
         },
-        "required": required,
+        "required": ["a", "b", "operation"],
         "additionalProperties": False,
     }
 def apply_operation(op:str,a:Any,b:Any) ->float:
@@ -63,6 +53,8 @@ def apply_operation(op:str,a:Any,b:Any) ->float:
         result = a/b
     elif op == "mod":
         result = a%b
+    else:
+        raise ValueError(f"unknown op: {op}")
     return float(result)
       
 def create_handler(supported_operations:tuple[str,...])->Callable[...,float]:
@@ -96,36 +88,17 @@ def create_description(
     )
 def tool_schema() -> list[Tool]:
 
+    # nested chain: func_1=add, func_2=add+sub, ..., func_N=all OPERATIONS
     tools = []
-    remaining = ("sub", "mul", "div", "mod")
-    tool_id = 1
-    for size in range(0, len(remaining) + 1):
-
-        for subset in combinations(remaining, size):
-
-            supported = ("add",) + subset
-            name = "_".join(supported)
-            handler = create_handler(supported)
-    # the below tool generates for eg:           
-    # Tools(
-    #     id_type="func_4",
-    #     name="add_div",
-    #     description="perform either of the two arithmetic operations.Supported operation addition division",
-    #     parameters=parameters(["add", "div"]),
-    #     handler=op_add_div,
-    # ),
-
-            tool = Tool(
-                id_type=f"func_{tool_id}",
-                name=name,
-                description=create_description(supported),
-                parameters=parameters(supported),
-                handler=handler,
-            )
-
-            tools.append(tool)
-            tool_id += 1
-
+    for i in range(1, len(OPERATIONS) + 1):
+        supported = OPERATIONS[:i]
+        tools.append(Tool(
+            id_type=f"func_{i}",
+            name="_".join(supported),
+            description=create_description(supported),
+            parameters=parameters(supported),
+            handler=create_handler(supported),
+        ))
     return tools         
 TOOLS = tool_schema()
 
